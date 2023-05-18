@@ -1,4 +1,5 @@
-Guys, 
+
+Guys,
 
 Please take a look to these files.
 
@@ -13,3 +14,6 @@ geoFunctions/LeastSquaresPosition (Now it is for the Earth, we will later align 
 geoFunctions/computeLocation
 
 geoFunctions/sky_plot.m
+
+
+![alt text](skyplot.png)
