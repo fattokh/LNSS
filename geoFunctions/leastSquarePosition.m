@@ -3,7 +3,7 @@ function [pos, el, az, dop] = leastSquarePos(satpos, obs, settings)
 %
 %[pos, el, az, dop] = leastSquarePos(satpos, obs, settings);
 %
-%   Inputs:
+%   Inputs:z
 %       satpos      - Satellites positions (in ECEF system: [X; Y; Z;] -
 %                   one column per satellite)
 %       obs         - Observations - the pseudorange measurements to each
@@ -97,7 +97,7 @@ pos = pos';
 dop     = zeros(1, 5);
     
     %--- Calculate DOP ----------------------------------------------------
-    Q       = inv(A'*A);
+    Q       = inv(A.'*A);
     
     dop(1)  = sqrt(trace(Q));                       % GDOP    
     dop(2)  = sqrt(Q(1,1) + Q(2,2) + Q(3,3));       % PDOP
