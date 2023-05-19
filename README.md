@@ -18,3 +18,11 @@ geoFunctions/sky_plot.m
 ![Alt text](/img/skyplot.png)
 
 
+Kalman filtering plot
+
+![Alt text](/img/kalman_filtering_plot.png)
+
+
+WLS plot
+
+![Alt text](/img/WLS_plot.png)
