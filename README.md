@@ -30,6 +30,11 @@ WLS plot
 
 For our report we need such snapshots:
 
+Dilusion of Precision
+
+
+![Alt text](/img/dop.png)
+
 Availability: Elevation angles in terms of HDOP and VDOP
 
 ![Alt text](/img/availability_elevation_hdop.png)
