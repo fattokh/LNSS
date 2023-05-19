@@ -6,8 +6,20 @@ clc;
 %    Implement alternative PVT computation block to target one (or more) moon more realistic navigation
 %   scenarios. Examples:
 %   1) The receiver is equipped with an altimeter.
-%   2) The receiver is a rover exploring the Mo% on, equipped with an inertial measurement unit (IMU).
-%   (Kalman Filter).
+%         [altimeter] = We have input data
+%   2) The receiver is a rover exploring the Moon, equipped with an inertial measurement unit (IMU).
+%   (Kalman Filter). 
+%
+%        
+%            [accelerometer] = calculate distance, we need double integration of acceleration,
+%            but we will have noise
+%            [magnetometer] = to identify the north direction 
+%            [gyroscope] = to identify change in orientation or rotation
+%            [Kalman] = to estimate receiver position, smoothing the
+%            tracking (or estimate when there is temporary GNSS
+%            unavailability
+%              
+%
 %   3) There is a Moon station transmitting a ranging signal to the receiver/rover (Differential
 %       positioning).
 %   To be described in the report
@@ -63,34 +75,36 @@ eph.transmitTime = gnssdata.GALWeek;
 prnList = zeros(height(gnssdata),1);
 prnList(:) = 24701805;
 for i = 1:height(gnssdata)
-prnList(i) = prnList(i) + rand(1,1)*51145709;
+prnList(i) = prnList(i) + rand(1,1)*5002709;
 end
-prnRate = zeros(height(gnssdata),3);
-prnRate(:,:) = -500;
+satVel = zeros(height(gnssdata),3);
+satVel(:,:) = -3500;
+prnRate = zeros(height(gnssdata),1);
+prnRate(:,:) = -500+rand(1,1)*1000;
 for i = 1:height(gnssdata)
-prnRate(i,1) = prnRate(i,1) + rand(1,1)*1000;
-prnRate(i,2) = prnRate(i,2) + rand(1,1)*1000;
-prnRate(i,3) = prnRate(i,3) + rand(1,1)*1000;
+satVel(i,1) = satVel(i,1) + rand(1,1)*7000;
+satVel(i,2) = satVel(i,2) + rand(1,1)*7000;
+satVel(i,3) = satVel(i,3) + rand(1,1)*7000;
 end
 
-%ls w/o alyitude
+%ls w/o alyitude    
 
 
 %% Satellite position and satellite clock correction
 [satPositions, satClkCorr] = satposition(eph.transmitTime, prnList, eph, settings);
 
 satpos = satPositions;
+satpos1 = satPositions.';
 obs = prnRate;
 %[pos, el, az,dop] = leastSquarePosition(satPositions, prnRate, settings);
-
 nmbOfIterations = 7;
 
-
-nmbOfSatellites = height(prnRate);
 dtr     = pi/180;
-pos     = zeros(4, 1);
+pos     = zeros(3, 1);
 X       = satpos;
-A       = zeros(nmbOfSatellites, 4);
+nmbOfSatellites = size(satpos, 2);
+
+A       = zeros(nmbOfSatellites, 3);
 omc     = zeros(nmbOfSatellites, 1);
 az      = zeros(1, nmbOfSatellites);
 el      = az;
@@ -102,53 +116,44 @@ for iter = 1:nmbOfIterations
         if iter == 1
             %--- Initialize variables at the first iteration --------------
             Rot_X = X(:, i);
-
-            %% Variance covariance matrix including elevation angles for WLS @ Kaplan
-            R = ones(25);
+            trop = 2;
         else
             %--- Update equations -----------------------------------------
             rho2 = (X(1, i) - pos(1))^2 + (X(2, i) - pos(2))^2 + ...
                    (X(3, i) - pos(3))^2;
-            traveltime = sqrt(rho2) / settings.c;
+            traveltime = sqrt(rho2) / settings.c ;
 
             %--- Correct satellite position (do to earth rotation) --------
             Rot_X = e_r_corr(traveltime, X(:, i));
 
             %--- Find the elevation angel of the satellite ----------------
             [az(i), el(i), dist] = topocent(pos(1:3, :), Rot_X - pos(1:3, :));
-            
-            for ii = 1:nmbOfSatellites
-                 for j = 1:nmbOfSatellites
-                      R (ii,j) = el(ii)*el(j);
-                       
-                 end
+
+            if (settings.useTropCorr == 1)
+                %--- Calculate tropospheric correction --------------------
+                trop = tropo(sin(el(i) * dtr), ...
+                             0.0, 1013.0, 293.0, 50.0, 0.0, 0.0, 0.0);
+            else
+                % Do not calculate or apply the tropospheric corrections
+                trop = 0;
             end
-            
         end % if iter == 1 ... ... else 
 
         %--- Apply the corrections ----------------------------------------
-        omc(i) = (obs(i) - norm(Rot_X - pos(1:3), 'fro') + pos(4) );
+        omc(i) = (obs(i) - norm(Rot_X - pos(1:3), 'fro') );
 
         %--- Construct the A matrix ---------------------------------------
-        A(i, :) =  [ ((Rot_X(1) - pos(1))) / obs(i), ...
-                     ((Rot_X(2) - pos(2))) / obs(i), ...
-                     ((Rot_X(3) - pos(3))) / obs(i), ...
-                     1 ];
-        
+        A(i, :) =  [ (-(Rot_X(1) - pos(1))) / obs(i); ...
+                     (-(Rot_X(2) - pos(2))) / obs(i); ...
+                     (-(Rot_X(3) - pos(3))) / obs(i)   ];
     end % for i = 1:nmbOfSatellites
 
     % These lines allow the code to exit gracefully in case of any errors
-    if rank(A) ~= 4
-        pos     = zeros(1, 4);
-        
-    end
-Q       = inv(A'*A);
+
+
     %--- Find position update ---------------------------------------------
-
-
-%% Full formula for WLS
-    x   =A \ omc;%(A.' * inv(R) * A) \ A.' * inv(R)  * omc;
-   %fd(iter,:) =x;
+    x   = A \ omc;
+    
     %--- Apply position update --------------------------------------------
     pos = pos + x;
     
@@ -159,23 +164,77 @@ pos = pos';
 %=== Calculate Dilution Of Precision ======================================
 
     %--- Initialize output ------------------------------------------------
-dop     = zeros(1, 5);
+    dop     = zeros(1, 5);
     
     %--- Calculate DOP ----------------------------------------------------
-    
+    Q       = inv(A'*A);
     
     dop(1)  = sqrt(trace(Q));                       % GDOP    
     dop(2)  = sqrt(Q(1,1) + Q(2,2) + Q(3,3));       % PDOP
     dop(3)  = sqrt(Q(1,1) + Q(2,2));                % HDOP
     dop(4)  = sqrt(Q(3,3));                         % VDOP
-    dop(5)  = sqrt(Q(4,4));                         % TDOP
+ %   dop(5)  = sqrt(Q(4,4));                         % TDOP
 
 
 
-skyplot(az,abs(el),satIdx);
+[lla1, gnssVel1, hdop1, vdop1] = receiverposition(prnList,satpos1,prnRate,satVel);
+%geoplot(lla1(1),lla1(2));
+%geobasemap topographic
+%skyplot(az,abs(el),satIdx);
 poss = pos;
-poss(3) = [];
+
 LLA = xyz2lla(poss(1:3));
+
+
+    c=imread("Lunar_map.jpg");
+    center = [0 0 0]; % center of the sphere
+  radius = 1737;
+    % Initalize longitude and colatitude range
+    longitude = deg2rad(linspace(0,360,size(c,2)));
+    colatitude = deg2rad(linspace(90,-90,size(c,1)));
+    
+    circle_center = [0.5 0.5 0.5]; % center of the circle
+circle_radius = 0.3; % radius of the circle
+theta_circle = linspace(0, 2*pi, 100); % azimuthal angle for the circle
+phi_circle = linspace(0, pi, 50); % polar angle for the circle
+[theta_circle, phi_circle] = meshgrid(theta_circle, phi_circle);
+
+x_circle = circle_center(1) + circle_radius*sin(phi_circle).*cos(theta_circle);
+y_circle = circle_center(2) + circle_radius*sin(phi_circle).*sin(theta_circle);
+z_circle = circle_center(3) + circle_radius*cos(phi_circle);
+
+
+    % Initialize empty variables
+    X = zeros(size(c,1),size(c,2));
+    Y = zeros(size(c,1),size(c,2));
+    Z = zeros(size(c,1),size(c,2));
+    % Convert spherical to cartesian coordinates
+    for j = 1:length(colatitude)
+        for i = 1:length(longitude)
+            [X(j,i), Y(j,i), Z(j,i)] = sph2cart( ...
+                                            longitude(i),...
+                                            colatitude(j),...
+                                            radius);
+        end
+    end
+n=30;
+r = 10; % radius of the sphere
+
+thetha = 0:pi/(n/2):2*pi; 
+phi    = -pi:2*pi/n:pi;
+xp     = r.*sin(phi).*cos(thetha);
+yp     = r.*sin(thetha).*sin(phi);
+zp     = r.*cos(phi);
+
+    figure
+
+    hold on 
+
+    scatter3(X(100),Y(100),Z(100));
+    hold on
+        surf(X,Y,Z,c,'EdgeColor','none','FaceColor','texturemap');
+
+    axis equal
 
 
 %{
