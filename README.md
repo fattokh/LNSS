@@ -26,3 +26,16 @@ Kalman filtering plot
 WLS plot
 
 ![Alt text](/img/WLS_plot.png)
+
+
+For our report we need such snapshots:
+
+Availability: Elevation angles in terms of HDOP and VDOP
+
+![Alt text](/img/availability_elevation_hdop.png)
+![Alt text](/img/availability_elevation_vdop.png)
+
+Availability: Elevation angles in terms of HDOP and VDOP
+
+![Alt text](/img/availability_satellite_hdop.png)
+![Alt text](/img/availability_satellite_vdop.png)
