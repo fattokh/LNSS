@@ -20,7 +20,7 @@ geoFunctions/sky_plot.m
 
 Kalman filtering plot
 
-![Alt text](/img/kalman_filtering_plot.png)
+![Alt text](/img/Kalman_filtering_plot.png)
 
 
 WLS plot
